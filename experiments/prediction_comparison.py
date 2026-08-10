@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from config import (
+from utils.config import (
     DATA_DIR,
     ENV_ID,
     FIGURE_DIR,

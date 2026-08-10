@@ -1,24 +1,5 @@
 """Script di verifica per gli esperimenti su Acrobot.
 
-Esegue Q-Learning, SARSA, Monte Carlo Prediction e TD(0) Prediction su
-Acrobot-v1 per ciascuno dei seed configurati (media su piu' seed,
-requisito sperimentale del progetto), ed esegue una serie di
-controlli di correttezza sui risultati (shape delle tabelle, NaN/Inf,
-range di episode_lengths, segno di episode_returns, decadimento di
-epsilon).
-
-Le due policy di prediction (MC e TD(0)) valutano la policy greedy
-appresa da Q-Learning, congelata tramite acrobot.policies.make_greedy_policy
-(vedi la discussione sul perche' non esiste un'euristica manuale per
-Acrobot come per CartPole).
-
-Questo script NON produce i grafici richiesti dal progetto (learning
-curves, confronto fra algoritmi, sensibilita' agli iperparametri): il
-suo scopo e' verificare che l'intera pipeline funzioni correttamente
-su piu' seed prima di investire tempo nell'analisi sperimentale
-completa. I risultati grezzi vengono salvati in config.DATA_DIR per
-l'analisi successiva.
-
 Utilizzo:
     python run_acrobot_experiment.py
     python run_acrobot_experiment.py --episodes 200 --seeds 42   # test veloce
@@ -38,7 +19,7 @@ from algorithms.sarsa import sarsa
 from algorithms.monte_carlo import monte_carlo_prediction
 from algorithms.td_zero import td_zero_prediction
 
-from config import (
+from utils.config import (
     ACROBOT_CONTROL_EPISODES,
     ACROBOT_DEFAULT_BINS,
     ACROBOT_DEFAULT_HIGH,
@@ -52,7 +33,6 @@ from config import (
 )
 
 MAX_EPISODE_STEPS = 500
-
 
 class VerificationError(AssertionError):
     """Sollevata quando un controllo di correttezza fallisce."""
@@ -188,6 +168,7 @@ def run_single_seed(seed, n_actions, control_episodes, prediction_episodes):
     # La policy valutata da MC/TD(0) e' quella greedy rispetto alla
     # Q-table di Q-Learning (vedi acrobot/policies.py).
     rng = np.random.default_rng(seed)
+
     greedy_policy = make_greedy_policy(ql_result.q_table, discretizer, rng)
 
     t0 = time.time()

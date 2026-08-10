@@ -5,7 +5,7 @@ from typing import Callable
 import numpy as np
 
 from acrobot.discretizer import AcrobotDiscretizer
-from cartpole.policies import greedy_action
+from utils.policies import greedy_action
 
 def make_greedy_policy(
     q_table: np.ndarray,

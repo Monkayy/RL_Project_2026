@@ -1,21 +1,21 @@
 """Monte Carlo Prediction per CartPole."""
+from typing import Callable
 
 import gymnasium as gym
 import numpy as np
 
-from cartpole.discretizer import CartPoleDiscretizer
-from cartpole.policies import (
-    cartpole_heuristic_policy,
-)
-from cartpole.results import PredictionResult
+from utils.base_discretizer import BaseDiscretizer
 
-from config import MONTE_CARLO_PARAMS as mc_params
+from utils.results import PredictionResult
+
+from utils.config import MONTE_CARLO_PARAMS as mc_params
 default_alpha = mc_params.get("alpha")
 default_gamma = mc_params.get("gamma")
 
 def monte_carlo_prediction(
     env_id: str,
-    discretizer: CartPoleDiscretizer,
+    discretizer: BaseDiscretizer,
+    policy: Callable[[np.ndarray], int],
     num_episodes: int,
     seed: int,
     alpha: float = default_alpha,
@@ -76,7 +76,7 @@ def monte_carlo_prediction(
         while not finished:
             state = discretizer.encode(observation)
 
-            action = cartpole_heuristic_policy(observation)
+            action = policy(observation)
 
             (
                 observation,

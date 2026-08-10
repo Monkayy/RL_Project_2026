@@ -1,15 +1,13 @@
 """TD(0) Prediction per CartPole."""
+from typing import Callable
 
 import gymnasium as gym
 import numpy as np
 
-from cartpole.discretizer import CartPoleDiscretizer
-from cartpole.policies import (
-    cartpole_heuristic_policy,
-)
-from cartpole.results import PredictionResult
+from utils.base_discretizer import BaseDiscretizer
+from utils.results import PredictionResult
 
-from config import TD_ZERO_PARAMS as td0_params
+from utils.config import TD_ZERO_PARAMS as td0_params
 default_alpha = td0_params.get("alpha")
 default_gamma = td0_params.get("gamma")
 
@@ -17,7 +15,8 @@ default_gamma = td0_params.get("gamma")
 
 def td_zero_prediction(
     env_id: str,
-    discretizer: CartPoleDiscretizer,
+    discretizer: BaseDiscretizer,
+    policy: Callable[[np.ndarray], int],
     num_episodes: int,
     seed: int,
     alpha: float = default_alpha,
@@ -75,7 +74,7 @@ def td_zero_prediction(
         absolute_updates = []
 
         while not finished:
-            action = cartpole_heuristic_policy(
+            action = policy(
                 observation
             )
 

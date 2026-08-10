@@ -3,14 +3,15 @@
 import gymnasium as gym
 import numpy as np
 
-from cartpole.discretizer import CartPoleDiscretizer
-from cartpole.policies import (
+from utils.policies import (
     epsilon_greedy_action,
     update_epsilon,
 )
-from cartpole.results import ControlResult
+from utils.results import ControlResult
 
-from config import SARSA_PARAMS
+from utils.base_discretizer import BaseDiscretizer
+
+from utils.config import SARSA_PARAMS
 
 default_alpha = SARSA_PARAMS.get("alpha")
 default_gamma = SARSA_PARAMS.get("gamma")
@@ -22,7 +23,7 @@ default_eps_decay = SARSA_PARAMS.get("epsilon_decay")
 
 def sarsa(
     env_id: str,
-    discretizer: CartPoleDiscretizer,
+    discretizer: BaseDiscretizer,
     num_episodes: int,
     seed: int,
     alpha: float = default_alpha,
@@ -31,6 +32,7 @@ def sarsa(
     epsilon_min: float = default_eps_min,
     epsilon_decay: float = default_eps_decay,
 ) -> ControlResult:
+
     """Addestra una policy con SARSA on-policy."""
 
     if num_episodes < 1:

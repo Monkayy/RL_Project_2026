@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from config import (
+from utils.config import (
     CONTROL_EPISODES,
     DATA_DIR,
     ENV_ID,
@@ -79,17 +79,10 @@ def run_control_comparison(
     """Esegue il confronto completo."""
 
     print(
-        "\n======================================"
-    )
-    print(
-        "CONFRONTO Q-LEARNING VS SARSA"
-    )
-    print(
-        "======================================"
-    )
-
-    print(
-        "\nAddestramento Q-Learning"
+        "\n======================================\n"
+        "CONFRONTO Q-LEARNING vs SARSA\n"
+        "======================================\n\n"
+        "Addestramento Q-Learning"
     )
 
     q_learning_results = run_control_algorithm(

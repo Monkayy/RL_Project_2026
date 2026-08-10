@@ -5,7 +5,7 @@ from typing import Callable, Sequence
 
 import numpy as np
 
-from config import (
+from utils.config import (
     DEFAULT_BINS,
     DEFAULT_HIGH,
     DEFAULT_LOW,
@@ -15,7 +15,7 @@ from cartpole.discretizer import (
     CartPoleDiscretizer,
 )
 
-from cartpole.results import (
+from utils.results import (
     ControlResult,
     PredictionResult,
 )
@@ -71,13 +71,9 @@ def run_control_algorithm(
     q_tables = []
 
     for seed in seeds:
-        print(
-            f"  Esecuzione con seed {seed}..."
-        )
+        print(f"  Esecuzione {algorithm.__name__} con seed {seed}...")
 
-        discretizer = create_discretizer(
-            bins_per_dimension
-        )
+        discretizer = create_discretizer(bins_per_dimension)
 
         result = algorithm(
             env_id=env_id,

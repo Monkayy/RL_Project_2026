@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from config import (
+from utils.config import (
     ENV_ID,
     FIGURE_DIR,
     MONTE_CARLO_PARAMS,

@@ -8,7 +8,7 @@ import numpy as np
 from cartpole.discretizer import (
     CartPoleDiscretizer,
 )
-from cartpole.policies import greedy_action
+from utils.policies import greedy_action
 
 
 def evaluate_q_table(

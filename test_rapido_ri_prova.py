@@ -1,6 +1,6 @@
 """Test rapido dei quattro algoritmi su CartPole."""
 
-from config import (
+from utils.config import (
     DEFAULT_BINS,
     DEFAULT_HIGH,
     DEFAULT_LOW,

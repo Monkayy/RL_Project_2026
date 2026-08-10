@@ -3,14 +3,14 @@
 import gymnasium as gym
 import numpy as np
 
-from cartpole.discretizer import CartPoleDiscretizer
-from cartpole.policies import (
+from utils.base_discretizer import BaseDiscretizer
+from utils.policies import (
     epsilon_greedy_action,
     update_epsilon,
 )
-from cartpole.results import ControlResult
+from utils.results import ControlResult
 
-from config import Q_LEARNING_PARAMS as ql_params
+from utils.config import Q_LEARNING_PARAMS as ql_params
 
 default_alpha = ql_params.get("alpha")
 default_gamma = ql_params.get("gamma")
@@ -21,7 +21,7 @@ default_eps_decay = ql_params.get("epsilon_decay")
 
 def q_learning(
     env_id: str,
-    discretizer: CartPoleDiscretizer,
+    discretizer: BaseDiscretizer,
     num_episodes: int,
     seed: int,
     alpha: float = default_alpha,
