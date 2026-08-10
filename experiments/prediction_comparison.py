@@ -14,11 +14,11 @@ from config import (
     TD_ZERO_PARAMS,
 )
 
-from cartpole.algorithms.monte_carlo import (
+from algorithms.monte_carlo import (
     monte_carlo_prediction,
 )
 
-from cartpole.algorithms.td_zero import (
+from algorithms.td_zero import (
     td_zero_prediction,
 )
 

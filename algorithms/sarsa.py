@@ -1,4 +1,4 @@
-"""Implementazione tabulare di Q-Learning."""
+"""Implementazione tabulare di SARSA."""
 
 import gymnasium as gym
 import numpy as np
@@ -10,19 +10,28 @@ from cartpole.policies import (
 )
 from cartpole.results import ControlResult
 
+from config import SARSA_PARAMS
 
-def q_learning(
+default_alpha = SARSA_PARAMS.get("alpha")
+default_gamma = SARSA_PARAMS.get("gamma")
+default_eps_start = SARSA_PARAMS.get("epsilon_start")
+default_eps_min = SARSA_PARAMS.get("epsilon_min")
+default_eps_decay = SARSA_PARAMS.get("epsilon_decay")
+
+
+
+def sarsa(
     env_id: str,
     discretizer: CartPoleDiscretizer,
     num_episodes: int,
     seed: int,
-    alpha: float = 0.20,
-    gamma: float = 0.99,
-    epsilon_start: float = 1.0,
-    epsilon_min: float = 0.05,
-    epsilon_decay: float = 0.997,
+    alpha: float = default_alpha,
+    gamma: float = default_gamma,
+    epsilon_start: float = default_eps_start,
+    epsilon_min: float = default_eps_min,
+    epsilon_decay: float = default_eps_decay,
 ) -> ControlResult:
-    """Addestra una policy con Q-Learning off-policy."""
+    """Addestra una policy con SARSA on-policy."""
 
     if num_episodes < 1:
         raise ValueError(
@@ -41,8 +50,7 @@ def q_learning(
 
     if not 0.0 <= epsilon_min <= epsilon_start <= 1.0:
         raise ValueError(
-            "È richiesto 0 <= epsilon_min "
-            "<= epsilon_start <= 1."
+            "È richiesto 0 <= epsilon_min <= epsilon_start <= 1."
         )
 
     if not 0.0 < epsilon_decay <= 1.0:
@@ -87,15 +95,16 @@ def q_learning(
         )
 
         state = discretizer.encode(observation)
+
+        action = epsilon_greedy_action(
+            q_table[state],
+            epsilon,
+            rng,
+        )
+
         finished = False
 
         while not finished:
-            action = epsilon_greedy_action(
-                q_table[state],
-                epsilon,
-                rng,
-            )
-
             (
                 next_observation,
                 reward,
@@ -112,9 +121,16 @@ def q_learning(
 
             if terminated:
                 next_value = 0.0
+                next_action = 0
             else:
+                next_action = epsilon_greedy_action(
+                    q_table[next_state],
+                    epsilon,
+                    rng,
+                )
+
                 next_value = float(
-                    np.max(q_table[next_state])
+                    q_table[next_state][next_action]
                 )
 
             td_target = (
@@ -132,6 +148,7 @@ def q_learning(
             )
 
             state = next_state
+            action = next_action
 
             episode_returns[episode] += float(
                 reward

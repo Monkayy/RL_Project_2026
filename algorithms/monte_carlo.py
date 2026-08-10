@@ -1,4 +1,4 @@
-"""TD(0) Prediction per CartPole."""
+"""Monte Carlo Prediction per CartPole."""
 
 import gymnasium as gym
 import numpy as np
@@ -9,16 +9,20 @@ from cartpole.policies import (
 )
 from cartpole.results import PredictionResult
 
+from config import MONTE_CARLO_PARAMS as mc_params
+default_alpha = mc_params.get("alpha")
+default_gamma = mc_params.get("gamma")
 
-def td_zero_prediction(
+def monte_carlo_prediction(
     env_id: str,
     discretizer: CartPoleDiscretizer,
     num_episodes: int,
     seed: int,
-    alpha: float = 0.05,
-    gamma: float = 0.99,
+    alpha: float = default_alpha,
+    gamma: float = default_gamma,
+    first_visit: bool = True,
 ) -> PredictionResult:
-    """Stima V(s) dopo ogni transizione."""
+    """Stima V(s) usando il ritorno completo."""
 
     if num_episodes < 1:
         raise ValueError(
@@ -27,14 +31,15 @@ def td_zero_prediction(
 
     if not 0.0 < alpha <= 1.0:
         raise ValueError(
-            "alpha deve essere in (0, 1]."
+            "alpha deve essere nell'intervallo (0, 1]."
         )
 
     if not 0.0 <= gamma <= 1.0:
         raise ValueError(
-            "gamma deve essere in [0, 1]."
+            "gamma deve essere nell'intervallo [0, 1]."
         )
 
+    # creates the CartPole environment via Gymnasium
     env = gym.make(env_id)
     env.action_space.seed(seed)
 
@@ -65,59 +70,77 @@ def td_zero_prediction(
             seed=reset_seed
         )
 
-        state = discretizer.encode(observation)
+        trajectory = []
         finished = False
-        absolute_updates = []
 
         while not finished:
-            action = cartpole_heuristic_policy(
-                observation
-            )
+            state = discretizer.encode(observation)
+
+            action = cartpole_heuristic_policy(observation)
 
             (
-                next_observation,
+                observation,
                 reward,
                 terminated,
                 truncated,
                 _,
             ) = env.step(action)
 
-            next_state = discretizer.encode(
-                next_observation
-            )
-
             finished = terminated or truncated
 
-            if terminated:
-                next_value = 0.0
-            else:
-                next_value = float(
-                    v_table[next_state]
-                )
-
-            td_target = (
-                float(reward)
-                + gamma * next_value
+            trajectory.append(
+                (state, float(reward))
             )
+
+        episode_returns[episode] = sum(
+            reward
+            for _, reward in trajectory
+        )
+
+        episode_lengths[episode] = len(trajectory)
+
+        returns_from_t = np.zeros(
+            len(trajectory),
+            dtype=np.float64,
+        )
+
+        discounted_return = 0.0
+
+        for idx in range(
+            len(trajectory) - 1,
+            -1,
+            -1,
+        ):
+            discounted_return = (
+                trajectory[idx][1]
+                + gamma * discounted_return
+            )
+
+            returns_from_t[idx] = (
+                discounted_return
+            )
+
+        visited = set()
+        absolute_updates = []
+
+        for idx, (state, _) in enumerate(
+            trajectory
+        ):
+            if first_visit and state in visited:
+                continue
+
+            visited.add(state)
 
             old_value = v_table[state]
 
             v_table[state] += alpha * (
-                td_target - old_value
+                returns_from_t[idx]
+                - old_value
             )
 
             absolute_updates.append(
                 abs(v_table[state] - old_value)
             )
-
-            observation = next_observation
-            state = next_state
-
-            episode_returns[episode] += float(
-                reward
-            )
-
-            episode_lengths[episode] += 1
 
         if absolute_updates:
             mean_absolute_updates[episode] = (

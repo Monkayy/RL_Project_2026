@@ -1,4 +1,4 @@
-"""Implementazione tabulare di SARSA."""
+"""Implementazione tabulare di Q-Learning."""
 
 import gymnasium as gym
 import numpy as np
@@ -10,19 +10,27 @@ from cartpole.policies import (
 )
 from cartpole.results import ControlResult
 
+from config import Q_LEARNING_PARAMS as ql_params
 
-def sarsa(
+default_alpha = ql_params.get("alpha")
+default_gamma = ql_params.get("gamma")
+default_eps_start = ql_params.get("epsilon_start")
+default_eps_min = ql_params.get("epsilon_min")
+default_eps_decay = ql_params.get("epsilon_decay")
+
+
+def q_learning(
     env_id: str,
     discretizer: CartPoleDiscretizer,
     num_episodes: int,
     seed: int,
-    alpha: float = 0.20,
-    gamma: float = 0.99,
-    epsilon_start: float = 1.0,
-    epsilon_min: float = 0.05,
-    epsilon_decay: float = 0.997,
+    alpha: float = default_alpha,
+    gamma: float = default_gamma,
+    epsilon_start: float = default_eps_start,
+    epsilon_min: float = default_eps_min,
+    epsilon_decay: float = default_eps_decay,
 ) -> ControlResult:
-    """Addestra una policy con SARSA on-policy."""
+    """Addestra una policy con Q-Learning off-policy."""
 
     if num_episodes < 1:
         raise ValueError(
@@ -87,16 +95,15 @@ def sarsa(
         )
 
         state = discretizer.encode(observation)
-
-        action = epsilon_greedy_action(
-            q_table[state],
-            epsilon,
-            rng,
-        )
-
         finished = False
 
         while not finished:
+            action = epsilon_greedy_action(
+                q_table[state],
+                epsilon,
+                rng,
+            )
+
             (
                 next_observation,
                 reward,
@@ -113,39 +120,18 @@ def sarsa(
 
             if terminated:
                 next_value = 0.0
-                next_action = 0
             else:
-                next_action = epsilon_greedy_action(
-                    q_table[next_state],
-                    epsilon,
-                    rng,
-                )
-
                 next_value = float(
-                    q_table[next_state][next_action]
+                    np.max(q_table[next_state])
                 )
 
-            td_target = (
-                float(reward)
-                + gamma * next_value
-            )
-
-            td_error = (
-                td_target
-                - q_table[state][action]
-            )
-
-            q_table[state][action] += (
-                alpha * td_error
-            )
-
+            target = float(reward) + gamma * next_value
+            error = target - q_table[state][action]
+            q_table[state][action] += alpha * error
+            
             state = next_state
-            action = next_action
 
-            episode_returns[episode] += float(
-                reward
-            )
-
+            episode_returns[episode] += float(reward)
             episode_lengths[episode] += 1
 
         epsilons[episode] = epsilon

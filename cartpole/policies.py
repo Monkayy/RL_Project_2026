@@ -122,13 +122,13 @@ def cartpole_heuristic_policy(
     Policy euristica fissa per Monte Carlo Prediction e TD(0).
 
     L'azione viene scelta considerando principalmente:
-    - angolo del palo;
-    - velocità angolare del palo;
-    - velocità del carrello.
+     - angolo del palo;
+     - velocità angolare del palo;
+     - velocità del carrello.
 
     Azioni CartPole:
-    0 = spinta verso sinistra
-    1 = spinta verso destra
+     - 0 = spinta verso sinistra
+     - 1 = spinta verso destra
     """
 
     observation = np.asarray(

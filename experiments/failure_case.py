@@ -10,7 +10,7 @@ from config import (
     SEEDS,
 )
 
-from cartpole.algorithms.q_learning import (
+from algorithms.q_learning import (
     q_learning,
 )
 

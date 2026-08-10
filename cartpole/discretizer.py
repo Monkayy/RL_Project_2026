@@ -5,14 +5,20 @@ from typing import Sequence
 
 import numpy as np
 
+from config import (DEFAULT_LOW, DEFAULT_HIGH, DEFAULT_BINS)
+
 
 @dataclass(slots=True)
 class CartPoleDiscretizer:
     """Converte un'osservazione continua in un indice discreto."""
 
-    bins_per_dimension: Sequence[int] = (8, 8, 12, 12)
-    low: Sequence[float] = (-2.4, -3.0, -0.2095, -4.0)
-    high: Sequence[float] = (2.4, 3.0, 0.2095, 4.0)
+    # (cart_pos, cart_vel, pole_angle, pole_angle_vel)
+    bins_per_dimension: Sequence[int] = DEFAULT_BINS
+    low: Sequence[float] = DEFAULT_LOW
+    high: Sequence[float] = DEFAULT_HIGH
+
+    low_arr = np.asarray(low, dtype=np.float64)
+    high_arr = np.asarray(high, dtype=np.float64)
 
     _boundaries: tuple[np.ndarray, ...] = field(
         init=False,
@@ -20,39 +26,22 @@ class CartPoleDiscretizer:
     )
 
     def __post_init__(self) -> None:
-        if not (
-            len(self.bins_per_dimension)
-            == len(self.low)
-            == len(self.high)
-            == 4
-        ):
-            raise ValueError(
-                "CartPole richiede esattamente quattro dimensioni."
-            )
+        if not all(isinstance(n, int) for n in self.bins_per_dimension):
+            raise TypeError("I bin devono essere interi.")
 
-        if any(
-            int(n_bins) < 1
-            for n_bins in self.bins_per_dimension
-        ):
-            raise ValueError(
-                "Ogni dimensione deve avere almeno un bin."
-            )
+        if len(self.bins_per_dimension) != 4:
+            raise ValueError("CartPole richiede esattamente quattro dimensioni.")
+        
+        if not (len(self.low) == len(self.high) == 4):
+            raise ValueError("I limiti low e high devono contenere esattamente 4 elementi.")
+        
+        if min(self.bins_per_dimension) < 1:
+            raise ValueError("Ogni dimensione deve avere almeno 1 bin.")
 
-        low = np.asarray(self.low, dtype=np.float64)
-        high = np.asarray(self.high, dtype=np.float64)
-        bins = tuple(
-            int(value)
-            for value in self.bins_per_dimension
-        )
-
-        if np.any(low >= high):
+        if np.any(self.low_arr >= self.high_arr):
             raise ValueError(
                 "Ogni limite inferiore deve essere minore del superiore."
             )
-
-        self.bins_per_dimension = bins
-        self.low = tuple(float(value) for value in low)
-        self.high = tuple(float(value) for value in high)
 
         # Per creare n intervalli servono n - 1 soglie interne.
         self._boundaries = tuple(
@@ -63,9 +52,9 @@ class CartPoleDiscretizer:
                 dtype=np.float64,
             )[1:-1]
             for low_value, high_value, n_bins in zip(
-                low,
-                high,
-                bins,
+                self.low,
+                self.high,
+                self.bins_per_dimension,
             )
         )
 
@@ -91,8 +80,8 @@ class CartPoleDiscretizer:
 
         clipped = np.clip(
             values,
-            np.asarray(self.low),
-            np.asarray(self.high),
+            self.low_arr,
+            self.high_arr,
         )
 
         state = tuple(

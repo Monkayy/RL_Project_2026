@@ -9,14 +9,14 @@ from config import (
 
 from cartpole.discretizer import CartPoleDiscretizer
 
-from cartpole.algorithms.q_learning import q_learning
-from cartpole.algorithms.sarsa import sarsa
+from algorithms.q_learning import q_learning
+from algorithms.sarsa import sarsa
 
-from cartpole.algorithms.monte_carlo import (
+from algorithms.monte_carlo import (
     monte_carlo_prediction,
 )
 
-from cartpole.algorithms.td_zero import (
+from algorithms.td_zero import (
     td_zero_prediction,
 )
 
