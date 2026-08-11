@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import numpy as np
+from utils.policies import cartpole_heuristic_policy
 
 from utils.config import (
     DATA_DIR,
@@ -178,9 +179,10 @@ def run_prediction_comparison(
             env_id=ENV_ID,
             num_episodes=num_episodes,
             seeds=SEEDS,
-            algorithm_parameters=(
-                MONTE_CARLO_PARAMS
-            ),
+            algorithm_parameters={
+                **MONTE_CARLO_PARAMS,
+                "policy": cartpole_heuristic_policy
+            },
         )
     )
 
@@ -193,7 +195,10 @@ def run_prediction_comparison(
         env_id=ENV_ID,
         num_episodes=num_episodes,
         seeds=SEEDS,
-        algorithm_parameters=TD_ZERO_PARAMS,
+        algorithm_parameters={
+            **TD_ZERO_PARAMS,
+            "policy": cartpole_heuristic_policy
+        },
     )
 
     plot_mean_and_std(

@@ -9,7 +9,7 @@ from utils.config import (
 
 from cartpole.discretizer import CartPoleDiscretizer
 
-from algorithms.q_learning import q_learning
+from algorithms.q_learning import q_learning, QLearningConfig
 from algorithms.sarsa import sarsa
 
 from algorithms.monte_carlo import (
@@ -41,16 +41,12 @@ def main() -> None:
 
     print("\n1. Test Q-Learning")
 
+
     q_result = q_learning(
         env_id=ENV_ID,
         discretizer=discretizer,
-        num_episodes=TEST_EPISODES,
         seed=TEST_SEED,
-        alpha=0.2,
-        gamma=0.99,
-        epsilon_start=1.0,
-        epsilon_min=0.05,
-        epsilon_decay=0.95,
+        config=QLearningConfig(num_episodes=TEST_EPISODES)
     )
 
     print(

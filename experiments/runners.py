@@ -20,6 +20,14 @@ from utils.results import (
     PredictionResult,
 )
 
+from algorithms.sarsa import SARSAConfig
+from algorithms.q_learning import QLearningConfig
+
+CONFIG_MAP = {
+    "q_learning": QLearningConfig,
+    "sarsa": SARSAConfig,
+}
+
 
 @dataclass(slots=True)
 class MultiSeedControlResult:
@@ -70,6 +78,15 @@ def run_control_algorithm(
     all_epsilons = []
     q_tables = []
 
+    config_cls = CONFIG_MAP.get(algorithm.__name__)
+    if config_cls is None:
+        raise ValueError(f"Algoritmo non supportato: {algorithm.__name__}")
+
+    config = config_cls(
+        num_episodes=num_episodes,
+        **algorithm_parameters,
+    )
+
     for seed in seeds:
         print(f"  Esecuzione {algorithm.__name__} con seed {seed}...")
 
@@ -78,26 +95,14 @@ def run_control_algorithm(
         result = algorithm(
             env_id=env_id,
             discretizer=discretizer,
-            num_episodes=num_episodes,
             seed=seed,
-            **algorithm_parameters,
+            config=config
         )
 
-        all_returns.append(
-            result.episode_returns
-        )
-
-        all_lengths.append(
-            result.episode_lengths
-        )
-
-        all_epsilons.append(
-            result.epsilons
-        )
-
-        q_tables.append(
-            result.q_table
-        )
+        all_returns.append(result.episode_returns)
+        all_lengths.append(result.episode_lengths)
+        all_epsilons.append(result.epsilons)
+        q_tables.append(result.q_table)
 
     return MultiSeedControlResult(
         episode_returns=np.asarray(

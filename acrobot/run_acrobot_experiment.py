@@ -1,8 +1,15 @@
 """Script di verifica per gli esperimenti su Acrobot.
 
-Utilizzo:
-    python run_acrobot_experiment.py
-    python run_acrobot_experiment.py --episodes 200 --seeds 42   # test veloce
+Esegue Q-Learning, SARSA, Monte Carlo Prediction e TD(0) Prediction su
+Acrobot-v1 per ciascuno dei seed configurati, ed esegue una serie di
+controlli di correttezza sui risultati.
+
+Le policy di prediction (MC e TD(0)) valutano la policy greedy appresa
+da Q-Learning, congelata tramite acrobot.policy.make_greedy_policy.
+
+Uso:
+    python -m acrobot.run_acrobot_experiment
+    python -m acrobot.run_acrobot_experiment --episodes 200 --seeds 42 --no-strict
 """
 
 import argparse
@@ -14,8 +21,9 @@ import numpy as np
 
 from acrobot.discretizer import AcrobotDiscretizer
 from acrobot.policy import make_greedy_policy
-from algorithms.q_learning import q_learning
-from algorithms.sarsa import sarsa
+
+from algorithms.q_learning import q_learning, QLearningConfig
+from algorithms.sarsa import sarsa, SARSAConfig
 from algorithms.monte_carlo import monte_carlo_prediction
 from algorithms.td_zero import td_zero_prediction
 
@@ -24,9 +32,11 @@ from utils.config import (
     ACROBOT_DEFAULT_BINS,
     ACROBOT_DEFAULT_HIGH,
     ACROBOT_DEFAULT_LOW,
+    ACROBOT_MONTE_CARLO_PARAMS,
     ACROBOT_PREDICTION_EPISODES,
     ACROBOT_Q_LEARNING_PARAMS,
     ACROBOT_SARSA_PARAMS,
+    ACROBOT_TD_ZERO_PARAMS,
     DATA_DIR,
     ENV_ID_ACROBOT,
     SEEDS,
@@ -34,14 +44,16 @@ from utils.config import (
 
 MAX_EPISODE_STEPS = 500
 
+
 class VerificationError(AssertionError):
-    """Sollevata quando un controllo di correttezza fallisce."""
+    """Sollevata (in modalita' strict) quando un controllo fallisce."""
+
 
 # --------------------------------------------------------------------
-# Controlli di correttezza
+# Controlli di correttezza - restituiscono una lista di warnings
 # --------------------------------------------------------------------
 
-def check_control_result(name, result, discretizer, n_actions, epsilon_min):
+def check_control_result(result, discretizer, n_actions, epsilon_min):
     problems = []
 
     if not np.isfinite(result.q_table).all():
@@ -71,17 +83,15 @@ def check_control_result(name, result, discretizer, n_actions, epsilon_min):
     if result.epsilons[-1] > epsilon_min + 1e-9:
         problems.append(
             f"epsilon finale ({result.epsilons[-1]:.4f}) non ha "
-            f"raggiunto epsilon_min ({epsilon_min}): aumenta "
+            f"raggiunto epsilon_min ({epsilon_min}): normale su un "
+            f"run corto (--episodes basso), altrimenti aumenta "
             f"num_episodes o riduci epsilon_decay."
         )
 
-    if problems:
-        raise VerificationError(
-            f"[{name}] controlli falliti:\n  - " + "\n  - ".join(problems)
-        )
+    return problems
 
 
-def check_prediction_result(name, result, discretizer):
+def check_prediction_result(result, discretizer):
     problems = []
 
     if not np.isfinite(result.v_table).all():
@@ -105,10 +115,19 @@ def check_prediction_result(name, result, discretizer):
             "episode_returns positivo (non atteso per Acrobot)."
         )
 
-    if problems:
-        raise VerificationError(
-            f"[{name}] controlli falliti:\n  - " + "\n  - ".join(problems)
-        )
+    return problems
+
+
+def report(name, problems, strict):
+    if not problems:
+        return
+
+    message = f"[{name}] problemi rilevati:\n  - " + "\n  - ".join(problems)
+
+    if strict:
+        raise VerificationError(message)
+
+    print(f"AVVISO {message}")
 
 
 def get_n_actions(env_id):
@@ -122,7 +141,7 @@ def get_n_actions(env_id):
 # Esecuzione per un singolo seed
 # --------------------------------------------------------------------
 
-def run_single_seed(seed, n_actions, control_episodes, prediction_episodes):
+def run_single_seed(seed, n_actions, control_episodes, prediction_episodes, strict):
     print(f"\n=== Seed {seed} ===")
 
     discretizer = AcrobotDiscretizer(
@@ -131,45 +150,61 @@ def run_single_seed(seed, n_actions, control_episodes, prediction_episodes):
         high=ACROBOT_DEFAULT_HIGH,
     )
 
-    t0 = time.time()
-    ql_result = q_learning(
-        ENV_ID_ACROBOT, discretizer, control_episodes, seed
-    )
-    check_control_result(
-        "Q-Learning",
-        ql_result,
-        discretizer,
-        n_actions=n_actions,
-        epsilon_min=ACROBOT_Q_LEARNING_PARAMS["epsilon_min"],
-    )
-    print(
-        f"Q-Learning        ok  ({time.time() - t0:6.1f}s)  "
-        f"return medio (ultimi 100 ep): "
-        f"{ql_result.episode_returns[-100:].mean():8.2f}"
+    # --------------------
+    #     Q-Learning
+    # --------------------
+
+    ql_config = QLearningConfig.from_params(
+        control_episodes, ACROBOT_Q_LEARNING_PARAMS
     )
 
     t0 = time.time()
-    sarsa_result = sarsa(
-        ENV_ID_ACROBOT, discretizer, control_episodes, seed
+    ql_result = q_learning(ENV_ID_ACROBOT, discretizer, seed, ql_config)
+    problems = check_control_result(
+        ql_result, discretizer, n_actions, ql_config.epsilon_min
     )
-    check_control_result(
-        "SARSA",
-        sarsa_result,
-        discretizer,
-        n_actions=n_actions,
-        epsilon_min=ACROBOT_SARSA_PARAMS["epsilon_min"],
-    )
+    report("Q-Learning", problems, strict)
     print(
-        f"SARSA             ok  ({time.time() - t0:6.1f}s)  "
-        f"return medio (ultimi 100 ep): "
-        f"{sarsa_result.episode_returns[-100:].mean():8.2f}"
+        f"Q-Learning        {'ok' if not problems else 'AVVISI'}  "
+        f"({time.time() - t0:6.1f}s)  "
+        f"return medio: "
+        f"{ql_result.episode_returns.mean():8.2f}"
+    )
+
+    # --------------------
+    #       SARSA
+    # --------------------
+
+    sarsa_config = SARSAConfig(
+        num_episodes=control_episodes,
+        alpha=ACROBOT_SARSA_PARAMS["alpha"],
+        gamma=ACROBOT_SARSA_PARAMS["gamma"],
+        epsilon_start=ACROBOT_SARSA_PARAMS["epsilon_start"],
+        epsilon_min=ACROBOT_SARSA_PARAMS["epsilon_min"],
+        epsilon_decay=ACROBOT_SARSA_PARAMS["epsilon_decay"],
+    )
+
+    t0 = time.time()
+    sarsa_result = sarsa(ENV_ID_ACROBOT, discretizer, seed, sarsa_config)
+    problems = check_control_result(
+        sarsa_result, discretizer, n_actions, sarsa_config.epsilon_min
+    )
+    report("SARSA", problems, strict)
+    print(
+        f"SARSA             {'ok' if not problems else 'AVVISI'}  "
+        f"({time.time() - t0:6.1f}s)  "
+        f"return medio: "
+        f"{sarsa_result.episode_returns.mean():8.2f}"
     )
 
     # La policy valutata da MC/TD(0) e' quella greedy rispetto alla
-    # Q-table di Q-Learning (vedi acrobot/policies.py).
+    # Q-table di Q-Learning.
     rng = np.random.default_rng(seed)
-
     greedy_policy = make_greedy_policy(ql_result.q_table, discretizer, rng)
+
+    # --------------------
+    #   MC Prediction
+    # --------------------
 
     t0 = time.time()
     mc_result = monte_carlo_prediction(
@@ -178,14 +213,23 @@ def run_single_seed(seed, n_actions, control_episodes, prediction_episodes):
         greedy_policy,
         prediction_episodes,
         seed,
+        alpha=ACROBOT_MONTE_CARLO_PARAMS["alpha"],
+        gamma=ACROBOT_MONTE_CARLO_PARAMS["gamma"],
+        first_visit=ACROBOT_MONTE_CARLO_PARAMS["first_visit"],
     )
-    check_prediction_result("MC Prediction", mc_result, discretizer)
+    problems = check_prediction_result(mc_result, discretizer)
+    report("MC Prediction", problems, strict)
     visited_mc = mc_result.v_table[mc_result.v_table != 0]
     print(
-        f"MC Prediction     ok  ({time.time() - t0:6.1f}s)  "
+        f"MC Prediction     {'ok' if not problems else 'AVVISI'}  "
+        f"({time.time() - t0:6.1f}s)  "
         f"V medio (stati visitati): "
         f"{visited_mc.mean() if visited_mc.size else float('nan'):8.2f}"
     )
+
+    # --------------------
+    #   TD(0) Prediction
+    # --------------------
 
     t0 = time.time()
     td0_result = td_zero_prediction(
@@ -194,11 +238,15 @@ def run_single_seed(seed, n_actions, control_episodes, prediction_episodes):
         greedy_policy,
         prediction_episodes,
         seed,
+        alpha=ACROBOT_TD_ZERO_PARAMS["alpha"],
+        gamma=ACROBOT_TD_ZERO_PARAMS["gamma"],
     )
-    check_prediction_result("TD(0) Prediction", td0_result, discretizer)
+    problems = check_prediction_result(td0_result, discretizer)
+    report("TD(0) Prediction", problems, strict)
     visited_td0 = td0_result.v_table[td0_result.v_table != 0]
     print(
-        f"TD(0) Prediction  ok  ({time.time() - t0:6.1f}s)  "
+        f"TD(0) Prediction  {'ok' if not problems else 'AVVISI'}  "
+        f"({time.time() - t0:6.1f}s)  "
         f"V medio (stati visitati): "
         f"{visited_td0.mean() if visited_td0.size else float('nan'):8.2f}"
     )
@@ -273,6 +321,18 @@ def parse_args():
         default=None,
         help="Sovrascrive i seed da usare (default: config.SEEDS).",
     )
+    parser.add_argument(
+        "--no-strict",
+        dest="strict",
+        action="store_false",
+        help=(
+            "Non interrompere l'esecuzione sui controlli falliti "
+            "(stampa avvisi invece di sollevare un'eccezione). "
+            "Utile per test veloci con pochi episodi, dove epsilon "
+            "non fa in tempo a decadere fino al minimo."
+        ),
+    )
+    parser.set_defaults(strict=True)
     return parser.parse_args()
 
 
@@ -286,7 +346,8 @@ def main():
     print(
         f"Verifica pipeline Acrobot su {len(seeds)} seed: {seeds}\n"
         f"Episodi controllo: {control_episodes}, "
-        f"episodi prediction: {prediction_episodes}"
+        f"episodi prediction: {prediction_episodes}\n"
+        f"Modalita': {'strict' if args.strict else 'non-strict (solo avvisi)'}"
     )
 
     n_actions = get_n_actions(ENV_ID_ACROBOT)
@@ -296,7 +357,11 @@ def main():
         try:
             all_results.append(
                 run_single_seed(
-                    seed, n_actions, control_episodes, prediction_episodes
+                    seed,
+                    n_actions,
+                    control_episodes,
+                    prediction_episodes,
+                    args.strict,
                 )
             )
         except VerificationError as exc:
@@ -315,7 +380,7 @@ def main():
 
     save_results(seeds, all_results)
 
-    print("\nTutti i controlli sono passati.")
+    print("\nCompletato.")
 
 
 if __name__ == "__main__":

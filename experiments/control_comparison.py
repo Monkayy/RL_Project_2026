@@ -227,29 +227,15 @@ def run_control_comparison(
         ),
     )
 
-    print(
-        "\nReward medio finale Q-Learning:",
-        np.mean(q_learning_evaluation),
-    )
+    print(f"\n{'Q-Learning':-^35}")
+    print(f"  Reward medio finale : {np.mean(q_learning_evaluation):8.2f}")
+    print(f"  Deviazione standard : {np.std(q_learning_evaluation):8.2f}")
 
-    print(
-        "Deviazione standard Q-Learning:",
-        np.std(q_learning_evaluation),
-    )
+    print(f"\n{'SARSA':-^35}")
+    print(f"  Reward medio finale : {np.mean(sarsa_evaluation):8.2f}")
+    print(f"  Deviazione standard : {np.std(sarsa_evaluation):8.2f}")
 
-    print(
-        "\nReward medio finale SARSA:",
-        np.mean(sarsa_evaluation),
-    )
-
-    print(
-        "Deviazione standard SARSA:",
-        np.std(sarsa_evaluation),
-    )
-
-    print(
-        "\nConfronto completato."
-    )
+    print("\nConfronto completato.")
 
 
 if __name__ == "__main__":

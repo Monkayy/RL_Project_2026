@@ -2,21 +2,10 @@
 
 import argparse
 
-from experiments.control_comparison import (
-    run_control_comparison,
-)
-
-from experiments.failure_case import (
-    run_failure_case,
-)
-
-from experiments.prediction_comparison import (
-    run_prediction_comparison,
-)
-
-from experiments.sensitivity import (
-    run_all_sensitivity_experiments,
-)
+from experiments.control_comparison import run_control_comparison
+from experiments.failure_case import run_failure_case
+from experiments.prediction_comparison import run_prediction_comparison
+from experiments.sensitivity import run_all_sensitivity_experiments
 
 
 def parse_arguments():
