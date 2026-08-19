@@ -1,0 +1,213 @@
+"""Analisi di sensibilita' degli iperparametri per Acrobot-v1."""
+
+import argparse
+import time
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+from acrobot.discretizer import AcrobotDiscretizer
+from acrobot.policy import make_greedy_policy
+from algorithms.monte_carlo import monte_carlo_prediction
+from algorithms.q_learning import QLearningConfig, q_learning
+from algorithms.sarsa import SARSAConfig, sarsa
+from algorithms.td_zero import td_zero_prediction
+from utils.config import (
+    ACROBOT_SENSITIVITY_EPISODES,
+    ACROBOT_DEFAULT_BINS,
+    ACROBOT_DEFAULT_HIGH,
+    ACROBOT_DEFAULT_LOW,
+    ACROBOT_MONTE_CARLO_PARAMS,
+    ACROBOT_Q_LEARNING_PARAMS,
+    ACROBOT_SARSA_PARAMS,
+    ACROBOT_TD_ZERO_PARAMS,
+    DATA_DIR,
+    ENV_ID_ACROBOT,
+    FIGURE_DIR,
+    SEEDS,
+)
+
+PARAMETERS = {
+    "alpha": (0.05, 0.10, 0.20, 0.50),
+    "gamma": (0.80, 0.90, 0.99, 1.00),
+    "epsilon": (0.01, 0.05, 0.10, 0.30),
+}
+
+
+def make_discretizer():
+    return AcrobotDiscretizer(
+        bins_per_dimension=ACROBOT_DEFAULT_BINS,
+        low=ACROBOT_DEFAULT_LOW,
+        high=ACROBOT_DEFAULT_HIGH,
+    )
+
+
+def run_control_parameter(name, parameter, values, episodes, seeds):
+    print(f"\n" + "=" * 60)
+    print(f"▶ START CONTROL STUDY: {name.upper()} | Parameter: {parameter}")
+    print(f"  Values to test: {values}")
+    print(f"  Episodes: {episodes} | Seeds ({len(seeds)}): {seeds}")
+    print("=" * 60)
+
+    base = dict(
+        ACROBOT_Q_LEARNING_PARAMS
+        if name == "q_learning"
+        else ACROBOT_SARSA_PARAMS
+    )
+    curves = np.zeros((len(values), len(seeds), episodes))
+    algorithm = q_learning if name == "q_learning" else sarsa
+    config_type = QLearningConfig if name == "q_learning" else SARSAConfig
+    study_start_time = time.time()
+
+    for value_index, value in enumerate(values):
+        params = dict(base)
+        if parameter == "epsilon":
+            params.update(
+                epsilon_start=value, epsilon_min=value, epsilon_decay=1.0
+            )
+        else:
+            params[parameter] = value
+
+        print(f"\n  [{value_index + 1}/{len(values)}] Running {name} with {parameter}={value}...")
+        step_start_time = time.time()
+
+        for seed_index, seed in enumerate(seeds):
+            config = config_type(num_episodes=episodes, **params)
+            result = algorithm(ENV_ID_ACROBOT, make_discretizer(), seed, config)
+            curves[value_index, seed_index] = result.episode_returns
+
+        elapsed = time.time() - step_start_time
+        mean_ret = curves[value_index].mean(axis=0)[-min(100, episodes):].mean()
+        print(f"    ✔ Done in {elapsed:.2f}s across {len(seeds)} seeds | Final Mean Return: {mean_ret:.2f}")
+
+    total_time = time.time() - study_start_time
+    print(f"\n✔ FINISHED CONTROL STUDY: {name} ({parameter}) in {total_time:.2f}s")
+    return curves
+
+
+def run_prediction_parameter(algorithm, parameter, values, episodes, seeds):
+    print(f"\n" + "=" * 60)
+    print(f"▶ START PREDICTION STUDY: {algorithm.upper()} | Parameter: {parameter}")
+    print(f"  Values to test: {values}")
+    print(f"  Episodes: {episodes} | Seeds ({len(seeds)}): {seeds}")
+    print("=" * 60)
+
+    curves = np.zeros((len(values), len(seeds), episodes))
+    study_start_time = time.time()
+
+    for value_index, value in enumerate(values):
+        print(f"\n  [{value_index + 1}/{len(values)}] Running {algorithm} with {parameter}={value}...")
+        step_start_time = time.time()
+
+        for seed_index, seed in enumerate(seeds):
+            discretizer = make_discretizer()
+            baseline = q_learning(
+                ENV_ID_ACROBOT,
+                discretizer,
+                seed,
+                QLearningConfig(num_episodes=episodes, **ACROBOT_Q_LEARNING_PARAMS),
+            )
+            policy = make_greedy_policy(
+                baseline.q_table, discretizer, np.random.default_rng(seed)
+            )
+            params = dict(
+                ACROBOT_MONTE_CARLO_PARAMS
+                if algorithm == "mc"
+                else ACROBOT_TD_ZERO_PARAMS
+            )
+            params[parameter] = value
+
+            if algorithm == "mc":
+                result = monte_carlo_prediction(
+                    ENV_ID_ACROBOT, discretizer, policy, episodes, seed, **params
+                )
+            else:
+                result = td_zero_prediction(
+                    ENV_ID_ACROBOT, discretizer, policy, episodes, seed, **params
+                )
+            curves[value_index, seed_index] = result.mean_absolute_updates
+
+        elapsed = time.time() - step_start_time
+        mean_upd = curves[value_index].mean(axis=0)[-min(100, episodes):].mean()
+        print(f"    ✔ Done in {elapsed:.2f}s across {len(seeds)} seeds | Final Mean Absolute Update: {mean_upd:.4f}")
+
+    total_time = time.time() - study_start_time
+    print(f"\n✔ FINISHED PREDICTION STUDY: {algorithm} ({parameter}) in {total_time:.2f}s")
+    return curves
+
+
+def save_and_plot(name, parameter, values, curves, ylabel):
+    data_path = DATA_DIR / f"acrobot_{name}_sensitivity_{parameter}.npz"
+    figure_path = FIGURE_DIR / f"acrobot_{name}_sensitivity_{parameter}.png"
+    np.savez(data_path, values=np.asarray(values), curves=curves)
+
+    mean = curves.mean(axis=1)
+    std = curves.std(axis=1)
+    episodes = np.arange(1, curves.shape[-1] + 1)
+    plt.figure(figsize=(8, 5))
+    for index, value in enumerate(values):
+        plt.plot(episodes, mean[index], label=f"{parameter}={value}")
+        plt.fill_between(
+            episodes, mean[index] - std[index], mean[index] + std[index], alpha=0.12
+        )
+    plt.xlabel("Episodio")
+    plt.ylabel(ylabel)
+    plt.title(f"Acrobot-v1: {name} - sensibilita' a {parameter}")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(figure_path, dpi=150)
+    plt.close()
+
+    final = mean[:, -min(100, curves.shape[-1]) :].mean(axis=1)
+    print(f"\n  💾 Saved Figure: {figure_path}")
+    print(f"  💾 Saved Data  : {data_path}")
+    print("  📊 Summary Scores (Last 100 episodes):")
+    for value, score in zip(values, final):
+        print(f"     • {name} {parameter}={value}: {score:.4f}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--episodes", type=int, default=ACROBOT_SENSITIVITY_EPISODES
+    )
+    parser.add_argument("--seeds", type=int, nargs="+", default=SEEDS)
+    args = parser.parse_args()
+    if args.episodes < 1:
+        raise ValueError("--episodes deve essere positivo")
+
+    global_start_time = time.time()
+
+    print("\n" + "#" * 60)
+    print(" ACROBOT-V1 HYPERPARAMETER SENSITIVITY ANALYSIS ")
+    print("#" * 60)
+    print(f"Environment ID : {ENV_ID_ACROBOT}")
+    print(f"Episodes/Run   : {args.episodes}")
+    print(f"Seeds Count    : {len(args.seeds)} ({args.seeds})")
+    print(f"Output Path    : {FIGURE_DIR}")
+
+    for name in ("q_learning", "sarsa"):
+        for parameter, values in PARAMETERS.items():
+            curves = run_control_parameter(
+                name, parameter, values, args.episodes, args.seeds
+            )
+            save_and_plot(name, parameter, values, curves, "Return")
+
+    for name in ("mc", "td0"):
+        for parameter in ("alpha", "gamma"):
+            values = PARAMETERS[parameter]
+            curves = run_prediction_parameter(
+                name, parameter, values, args.episodes, args.seeds
+            )
+            save_and_plot(
+                name, parameter, values, curves, "Aggiornamento medio assoluto"
+            )
+
+    total_time = time.time() - global_start_time
+    print("\n" + "#" * 60)
+    print(f" ALL ACROBOT SENSITIVITY EXPERIMENTS COMPLETED IN {total_time / 60:.2f} MINUTES ")
+    print("#" * 60 + "\n")
+
+
+if __name__ == "__main__":
+    main()

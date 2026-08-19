@@ -1,4 +1,4 @@
-"""Analisi di sensibilità agli iperparametri."""
+"""Analisi di sensibilità agli iperparametri per Cartpole."""
 
 import numpy as np
 
@@ -13,31 +13,14 @@ from utils.config import (
     TD_ZERO_PARAMS,
 )
 
-from algorithms.monte_carlo import (
-    monte_carlo_prediction,
-)
+from algorithms.monte_carlo import monte_carlo_prediction
+from algorithms.q_learning import q_learning
+from algorithms.sarsa import sarsa
+from algorithms.td_zero import td_zero_prediction
 
-from algorithms.q_learning import (
-    q_learning,
-)
+from experiments.plotting import plot_mean_and_std, plot_parameter_summary
 
-from algorithms.sarsa import (
-    sarsa,
-)
-
-from algorithms.td_zero import (
-    td_zero_prediction,
-)
-
-from experiments.plotting import (
-    plot_mean_and_std,
-    plot_parameter_summary,
-)
-
-from experiments.runners import (
-    run_control_algorithm,
-    run_prediction_algorithm,
-)
+from experiments.runners import run_control_algorithm, run_prediction_algorithm
 
 
 def final_score(

@@ -5,11 +5,8 @@ in config.DATA_DIR e produce i grafici richiesti dal progetto (learning
 curves, confronto fra algoritmi, stabilita') piu' alcuni diagnostici
 specifici per Acrobot (tasso di troncamento, decadimento di epsilon).
 
-NON prodotti qui (richiedono run aggiuntive o instrumentazione non
-ancora presente):
-- Sensitivity analysis rispetto ad alpha/gamma/epsilon_decay: va fatta
-  eseguendo run_acrobot_experiment con diverse combinazioni di
-  ACROBOT_*_PARAMS e confrontando i risultati salvati.
+La sensitivity analysis viene prodotta da acrobot.sensitivity e salva
+un file .npz e un grafico per ogni algoritmo/parametro.
 - Copertura dello spazio degli stati NEL TEMPO: le tabelle attuali
   salvano solo lo stato finale delle q_table/v_table, non quali stati
   sono stati visitati episodio per episodio. Qui viene mostrata solo
@@ -18,6 +15,8 @@ ancora presente):
 Uso:
     python -m acrobot.plot_acrobot_results
 """
+
+import argparse
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -34,6 +33,20 @@ def rolling_mean(x, window):
     return np.convolve(x, kernel, mode="valid")
 
 
+SERIES_KEYS = (
+    "ql_returns",
+    "sarsa_returns",
+    "mc_returns",
+    "td0_returns",
+    "ql_lengths",
+    "sarsa_lengths",
+    "mc_lengths",
+    "td0_lengths",
+    "mc_updates",
+    "td0_updates",
+)
+
+
 def load_all(seeds):
     data = {}
     for seed in seeds:
@@ -45,6 +58,32 @@ def load_all(seeds):
             )
         data[seed] = np.load(path)
     return data
+
+
+def validate_data(data):
+    """Evita confronti tra run brevi e run completi."""
+    reference_length = None
+    for seed, result in data.items():
+        lengths = {key: len(result[key]) for key in SERIES_KEYS}
+        unique_lengths = set(lengths.values())
+        if len(unique_lengths) != 1:
+            raise ValueError(
+                f"Il file del seed {seed} contiene serie di lunghezza "
+                f"incoerente: {lengths}. Riesegui quel seed."
+            )
+
+        length = unique_lengths.pop()
+        if reference_length is None:
+            reference_length = length
+        elif length != reference_length:
+            raise ValueError(
+                "I seed hanno un numero di episodi differente "
+                f"({reference_length} e {length}). Non generare grafici "
+                "aggregati: riesegui il/i seed incompleti con lo stesso "
+                "valore di --episodes."
+            )
+
+    return reference_length
 
 
 def stack_smoothed(data, key, window=ROLLING_WINDOW):
@@ -137,6 +176,69 @@ def plot_epsilon_decay(data, key_epsilons, label, out_name):
     save_fig(out_name)
 
 
+def plot_final_control_performance(data, out_name, window=ROLLING_WINDOW):
+    """Confronta la performance finale sui seed, non solo le curve."""
+    labels = ("Q-Learning", "SARSA")
+    keys = ("ql_returns", "sarsa_returns")
+    scores = np.asarray(
+        [[result[key][-window:].mean() for result in data.values()] for key in keys]
+    )
+
+    plt.figure(figsize=(7, 5))
+    positions = np.arange(len(labels))
+    plt.bar(
+        positions,
+        scores.mean(axis=1),
+        yerr=scores.std(axis=1),
+        capsize=5,
+        color=("#4C78A8", "#F58518"),
+    )
+    plt.xticks(positions, labels)
+    plt.ylabel(f"Return medio (ultimi {window} episodi)")
+    plt.title("Performance finale: Q-Learning vs SARSA - Acrobot-v1")
+    save_fig(out_name)
+
+
+def write_summary(data, window=ROLLING_WINDOW):
+    """Salva numeri citabili nella relazione insieme ai grafici."""
+    out_path = DATA_DIR / "acrobot_summary.txt"
+    lines = [
+        "Acrobot-v1 — riepilogo sperimentale",
+        f"Seed: {', '.join(str(seed) for seed in data)}",
+        f"Finestra finale: {window} episodi",
+        "",
+        "Algoritmo | return iniziale | return finale | std finale | troncati finali",
+        "-" * 78,
+    ]
+    for label, returns_key, lengths_key in (
+        ("Q-Learning", "ql_returns", "ql_lengths"),
+        ("SARSA", "sarsa_returns", "sarsa_lengths"),
+        ("Monte Carlo prediction", "mc_returns", "mc_lengths"),
+        ("TD(0) prediction", "td0_returns", "td0_lengths"),
+    ):
+        returns = np.stack([result[returns_key] for result in data.values()])
+        lengths = np.stack([result[lengths_key] for result in data.values()])
+        initial = returns[:, :window].mean()
+        final = returns[:, -window:].mean()
+        final_std = returns[:, -window:].std()
+        truncated = (lengths[:, -window:] >= MAX_EPISODE_STEPS).mean() * 100
+        lines.append(
+            f"{label:23s} | {initial:15.2f} | {final:13.2f} | "
+            f"{final_std:10.2f} | {truncated:8.1f}%"
+        )
+
+    lines.extend(
+        (
+            "",
+            "Nota: Monte Carlo e TD(0) stimano V(s) per la policy greedy "
+            "congelata appresa da Q-Learning; il loro return non rappresenta "
+            "un aggiornamento di una policy di controllo.",
+        )
+    )
+    out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"Riepilogo salvato: {out_path}")
+
+
 # --------------------------------------------------------------------
 # 5. Convergenza (mean_absolute_updates) - MC vs TD(0)
 # --------------------------------------------------------------------
@@ -207,12 +309,33 @@ def print_state_coverage(data):
         )
 
 
+def print_sensitivity_results():
+    """Stampa i punteggi finali delle sensitivity gia' eseguite."""
+    for path in sorted(DATA_DIR.glob("acrobot_*_sensitivity_*.npz")):
+        saved = np.load(path)
+        values = saved["values"]
+        curves = saved["curves"]
+        scores = curves[:, :, -min(100, curves.shape[-1]) :].mean(axis=(1, 2))
+        print(f"\n{path.name}")
+        for value, score in zip(values, scores):
+            print(f"  {value}: {score:.2f}")
+
+
 # --------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------
 
 def main():
-    data = load_all(SEEDS)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--seeds", type=int, nargs="+", default=SEEDS)
+    parser.add_argument("--window", type=int, default=ROLLING_WINDOW)
+    args = parser.parse_args()
+    if args.window < 1:
+        raise ValueError("--window deve essere positivo")
+
+    data = load_all(args.seeds)
+    episodes = validate_data(data)
+    window = min(args.window, episodes)
 
     plot_learning_curve(
         data, "ql_returns", "Q-Learning", "acrobot_q_learning_curve.png"
@@ -237,11 +360,28 @@ def main():
     plot_epsilon_decay(
         data, "ql_epsilons", "Q-Learning", "acrobot_ql_epsilon.png"
     )
+    plot_epsilon_decay(
+        data, "sarsa_epsilons", "SARSA", "acrobot_sarsa_epsilon.png"
+    )
+
+    plot_final_control_performance(
+        data, "acrobot_control_final_performance.png", window
+    )
+
+    plot_comparison(
+        data,
+        [("mc_returns", "Monte Carlo"), ("td0_returns", "TD(0)")],
+        ylabel="Return",
+        title="Return nella prediction (policy greedy congelata) - Acrobot-v1",
+        out_name="acrobot_mc_vs_td0_returns.png",
+    )
 
     plot_convergence_comparison(data, "acrobot_mc_vs_td0_convergence.png")
     plot_v_distribution(data, "acrobot_v_distribution.png")
 
     print_state_coverage(data)
+    print_sensitivity_results()
+    write_summary(data, window)
 
     print("\nTutti i grafici sono stati salvati in", FIGURE_DIR)
 

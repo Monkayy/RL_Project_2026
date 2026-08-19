@@ -53,7 +53,13 @@ class VerificationError(AssertionError):
 # Controlli di correttezza - restituiscono una lista di warnings
 # --------------------------------------------------------------------
 
-def check_control_result(result, discretizer, n_actions, epsilon_min):
+def check_control_result(result, discretizer, n_actions, epsilon_min) -> list[str]:
+    """
+    Checks the results of control's algorithms.
+
+    Returns: a list of warnings if there are any, an empty
+    list if there's none
+    """
     problems = []
 
     if not np.isfinite(result.q_table).all():
@@ -118,7 +124,15 @@ def check_prediction_result(result, discretizer):
     return problems
 
 
-def report(name, problems, strict):
+def report(name: str, problems: list[str], strict: bool):
+    """
+    Utility function that formats the eventual problems
+    that pop up during execution.
+
+    name: the algorithm's name (e.g. SARSA, Q-Learning, etc.)
+    problems: a list of problems that were detected
+    strict: if true, raises an error if problems are found
+    """
     if not problems:
         return
 
