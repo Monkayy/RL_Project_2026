@@ -36,6 +36,7 @@ class BaseDiscretizer(ABC):
         if min(self.bins_per_dimension) < 1:
             raise ValueError("Ogni dimensione deve avere almeno 1 bin.")
 
+        # Convert bounds to numpy arrays for vectorized operations
         self._low_arr = np.asarray(self.low, dtype=np.float64)
         self._high_arr = np.asarray(self.high, dtype=np.float64)
 
@@ -61,9 +62,11 @@ class BaseDiscretizer(ABC):
 
     @property
     def state_shape(self) -> tuple[int, ...]:
+        """Returns the grid dimensions (bins count per dimension)."""
         return tuple(self.bins_per_dimension)
 
     def encode(self, observation: np.ndarray) -> tuple[int, ...]:
+        """Maps continuous state observations to discrete bin indices."""
         values = np.asarray(observation, dtype=np.float64)
 
         if values.shape != (self.expected_dim,):
@@ -72,12 +75,14 @@ class BaseDiscretizer(ABC):
                 f"shape {values.shape}, attesa ({self.expected_dim},)."
             )
 
+        # Restrict values to [low, high] bounds to handle outliers
         clipped = np.clip(
             values,
             self._low_arr,
             self._high_arr,
         )
 
+        # Map each scalar value to its corresponding bin index using pre-computed boundaries
         return tuple(
             int(np.digitize(value, boundaries))
             for value, boundaries in zip(

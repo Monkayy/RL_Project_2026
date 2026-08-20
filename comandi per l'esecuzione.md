@@ -17,7 +17,9 @@ To activate python's virtual environment run: `./create_venv.sh`
 `python3 -m acrobot.plot_acrobot_results`
 
 ## Sensitivity
-`python3 -m acrobot.sensitivity`
+`python3 -m acrobot.sensitivity` (note that this takes a long time, on my laptop it took almost 6h)
 
-## Grafici utilizzabili con i due run completi gia' disponibili.
-`python3 -m acrobot.plot_acrobot_results --seeds 123 456`
+# Breakout / Deep RL
+`python3 -m breakout.run_ablation --only full --steps 50000` to see if everything works fine, not to be used as a reference
+`python3 -m breakout.run_ablation --steps 250000 --seed 42` the actual run, without a CUDA environment this could take a while so take a seat
+`python3 -m breakout.plot_results --seed 42`

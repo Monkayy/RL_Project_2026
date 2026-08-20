@@ -44,7 +44,7 @@ def make_discretizer():
 
 def run_control_parameter(name, parameter, values, episodes, seeds):
     print(f"\n" + "=" * 60)
-    print(f"▶ START CONTROL STUDY: {name.upper()} | Parameter: {parameter}")
+    print(f" START CONTROL STUDY: {name.upper()} | Parameter: {parameter}")
     print(f"  Values to test: {values}")
     print(f"  Episodes: {episodes} | Seeds ({len(seeds)}): {seeds}")
     print("=" * 60)
@@ -78,16 +78,16 @@ def run_control_parameter(name, parameter, values, episodes, seeds):
 
         elapsed = time.time() - step_start_time
         mean_ret = curves[value_index].mean(axis=0)[-min(100, episodes):].mean()
-        print(f"    ✔ Done in {elapsed:.2f}s across {len(seeds)} seeds | Final Mean Return: {mean_ret:.2f}")
+        print(f"    Done in {elapsed:.2f}s across {len(seeds)} seeds | Final Mean Return: {mean_ret:.2f}")
 
     total_time = time.time() - study_start_time
-    print(f"\n✔ FINISHED CONTROL STUDY: {name} ({parameter}) in {total_time:.2f}s")
+    print(f"\n FINISHED CONTROL STUDY: {name} ({parameter}) in {total_time:.2f}s")
     return curves
 
 
 def run_prediction_parameter(algorithm, parameter, values, episodes, seeds):
     print(f"\n" + "=" * 60)
-    print(f"▶ START PREDICTION STUDY: {algorithm.upper()} | Parameter: {parameter}")
+    print(f" START PREDICTION STUDY: {algorithm.upper()} | Parameter: {parameter}")
     print(f"  Values to test: {values}")
     print(f"  Episodes: {episodes} | Seeds ({len(seeds)}): {seeds}")
     print("=" * 60)
@@ -129,10 +129,10 @@ def run_prediction_parameter(algorithm, parameter, values, episodes, seeds):
 
         elapsed = time.time() - step_start_time
         mean_upd = curves[value_index].mean(axis=0)[-min(100, episodes):].mean()
-        print(f"    ✔ Done in {elapsed:.2f}s across {len(seeds)} seeds | Final Mean Absolute Update: {mean_upd:.4f}")
+        print(f"    Done in {elapsed:.2f}s across {len(seeds)} seeds | Final Mean Absolute Update: {mean_upd:.4f}")
 
     total_time = time.time() - study_start_time
-    print(f"\n✔ FINISHED PREDICTION STUDY: {algorithm} ({parameter}) in {total_time:.2f}s")
+    print(f"\n FINISHED PREDICTION STUDY: {algorithm} ({parameter}) in {total_time:.2f}s")
     return curves
 
 
@@ -159,11 +159,11 @@ def save_and_plot(name, parameter, values, curves, ylabel):
     plt.close()
 
     final = mean[:, -min(100, curves.shape[-1]) :].mean(axis=1)
-    print(f"\n  💾 Saved Figure: {figure_path}")
-    print(f"  💾 Saved Data  : {data_path}")
-    print("  📊 Summary Scores (Last 100 episodes):")
+    print(f"\n Saved Figure: {figure_path}")
+    print(f" Saved Data  : {data_path}")
+    print(" Summary Scores (Last 100 episodes):")
     for value, score in zip(values, final):
-        print(f"     • {name} {parameter}={value}: {score:.4f}")
+        print(f"     - {name} {parameter}={value}: {score:.4f}")
 
 
 def main():

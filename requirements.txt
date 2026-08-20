@@ -1,3 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 numpy
 matplotlib
-gymnasium
+gymnasium[atari,other]
+ale_py
+torch
+opencv-python
