@@ -6,3 +6,4 @@ gymnasium[atari,other]
 ale_py
 torch
 opencv-python
+stable-baselines3[extra]

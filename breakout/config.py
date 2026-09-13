@@ -33,6 +33,13 @@ class DQNConfig:
     use_replay: bool = True
     use_target_network: bool = True
 
+    # Double DQN, Dueling Networks, and Prioritized Experience Replay
+    use_double_dqn: bool = False
+    use_dueling: bool = False
+    use_per: bool = False
+    per_alpha: float = 0.6
+    per_beta_start: float = 0.4
+
     def epsilon(self, step: int) -> float:
         fraction = min(step / self.epsilon_decay_steps, 1.0)
         return self.epsilon_start + fraction * (self.epsilon_end - self.epsilon_start)

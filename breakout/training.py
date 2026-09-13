@@ -9,7 +9,7 @@ import torch
 from breakout.agent import DQNAgent
 from breakout.config import DATA_DIR, MODEL_DIR, DQNConfig
 from breakout.environment import make_breakout_env
-from breakout.replay_buffer import ReplayBuffer, TransitionBatch
+from breakout.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer, TransitionBatch
 
 
 def set_seed(seed: int) -> None:
@@ -43,7 +43,11 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
     env = make_breakout_env(seed)
     state, _ = env.reset(seed=seed)
     agent = DQNAgent(env.action_space.n, config, device)
-    replay = ReplayBuffer(config.replay_capacity, tuple(np.asarray(state).shape))
+    
+    if config.use_per:
+        replay = PrioritizedReplayBuffer(config.replay_capacity, tuple(np.asarray(state).shape), alpha=config.per_alpha)
+    else:
+        replay = ReplayBuffer(config.replay_capacity, tuple(np.asarray(state).shape))
 
     # Tracking metrics for analysis and plotting
     episode_returns, episode_steps, losses = [], [], []
@@ -63,8 +67,21 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
         if config.use_replay:
             # Store transition in buffer and sample mini-batches
             replay.add(state, action, clipped_reward, next_state, done)
-            if replay.size >= config.replay_start_size and step % config.train_frequency == 0:
-                losses.append(agent.update(replay.sample(config.batch_size, device)))
+            if (hasattr(replay, 'tree') and replay.tree.size >= config.replay_start_size) or \
+               (not hasattr(replay, 'tree') and replay.size >= config.replay_start_size):
+                if step % config.train_frequency == 0:
+                    if config.use_per:
+                        fraction = min(step / config.total_steps, 1.0)
+                        beta = config.per_beta_start + fraction * (1.0 - config.per_beta_start)
+                        batch = replay.sample(config.batch_size, device, beta=beta)
+                    else:
+                        batch = replay.sample(config.batch_size, device)
+                        
+                    loss, td_errors = agent.update(batch, weights=batch.weights)
+                    losses.append(loss)
+                    
+                    if config.use_per:
+                        replay.update_priorities(batch.indices, td_errors)
         elif step % config.train_frequency == 0:
             # Replay ablation study: perform immediate update on single trajectory step
             batch = TransitionBatch(
@@ -74,7 +91,8 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
                 torch.as_tensor(np.asarray(next_state)[None], device=device),
                 torch.tensor([float(done)], device=device),
             )
-            losses.append(agent.update(batch))
+            loss, _ = agent.update(batch)
+            losses.append(loss)
 
         state = next_state
         if done:

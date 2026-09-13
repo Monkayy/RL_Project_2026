@@ -47,7 +47,7 @@ TD_ZERO_PARAMS = {
     "gamma": 0.99,
 }
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
 FIGURE_DIR = OUTPUT_DIR / "figures"
 DATA_DIR = OUTPUT_DIR / "data"
