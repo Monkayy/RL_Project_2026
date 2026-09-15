@@ -18,18 +18,21 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-def evaluate(agent: DQNAgent, seed: int, episodes: int, random_policy: bool = False) -> float:
-    env = make_breakout_env(seed)
+def evaluate(env, agent: DQNAgent, seed: int, episodes: int, random_policy: bool = False) -> float:
     returns = []
+
     for episode in range(episodes):
         state, _ = env.reset(seed=seed + episode)
         done, total_reward = False, 0.0
+
         while not done:
             action = env.action_space.sample() if random_policy else agent.select_action(state, 0.0)
             state, reward, terminated, truncated, _ = env.step(action)
             total_reward += reward
             done = terminated or truncated
+
         returns.append(total_reward)
+
     env.close()
     return float(np.mean(returns))
 
@@ -39,7 +42,6 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
     set_seed(seed)
     device = torch.device(device_name or ("cuda" if torch.cuda.is_available() else "cpu"))
 
-    # Initialize environment, agent, and replay memory buffer
     env = make_breakout_env(seed)
     state, _ = env.reset(seed=seed)
     agent = DQNAgent(env.action_space.n, config, device)
@@ -49,7 +51,6 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
     else:
         replay = ReplayBuffer(config.replay_capacity, tuple(np.asarray(state).shape))
 
-    # Tracking metrics for analysis and plotting
     episode_returns, episode_steps, losses = [], [], []
     evaluation_steps, evaluation_returns = [], []
     current_return, current_length = 0.0, 0
@@ -67,8 +68,8 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
         if config.use_replay:
             # Store transition in buffer and sample mini-batches
             replay.add(state, action, clipped_reward, next_state, done)
-            if (hasattr(replay, 'tree') and replay.tree.size >= config.replay_start_size) or \
-               (not hasattr(replay, 'tree') and replay.size >= config.replay_start_size):
+
+            if len(replay) >= config.replay_start_size:
                 if step % config.train_frequency == 0:
                     if config.use_per:
                         fraction = min(step / config.total_steps, 1.0)
@@ -96,19 +97,18 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
 
         state = next_state
         if done:
-            # Record episode metrics and reset environment for next episode
             episode_returns.append(current_return)
             episode_steps.append(current_length)
             state, _ = env.reset()
             current_return, current_length = 0.0, 0
 
-        # Periodically hard-update target network weights to stabilize Q-value targets
+        # hard-update target network weights
         if config.use_target_network and step % config.target_update_frequency == 0:
             agent.update_target_network()
 
-        # Periodically evaluate policy performance without exploration noise
+        # evaluate policy
         if step % config.evaluation_frequency == 0:
-            score = evaluate(agent, seed + 10_000 + step, config.evaluation_episodes)
+            score = evaluate(env, agent, seed + 10_000 + step, config.evaluation_episodes)
             evaluation_steps.append(step)
             evaluation_returns.append(score)
             print(f"[{name}] step={step:>7} epsilon={config.epsilon(step):.3f} eval={score:.2f}")
@@ -122,7 +122,7 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
         losses=np.asarray(losses, dtype=np.float32),
         evaluation_steps=np.asarray(evaluation_steps, dtype=np.int32),
         evaluation_returns=np.asarray(evaluation_returns, dtype=np.float32),
-        random_baseline=evaluate(agent, seed + 20_000, config.evaluation_episodes, random_policy=True),
+        random_baseline=evaluate(env, agent, seed + 20_000, config.evaluation_episodes, random_policy=True),
         config=np.array(asdict(config), dtype=object),
     )
 

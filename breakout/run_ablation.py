@@ -1,5 +1,3 @@
-"""Esegue DQN completo e le ablation target-network / experience-replay."""
-
 import argparse
 from dataclasses import replace
 

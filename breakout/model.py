@@ -1,5 +1,3 @@
-"""Rete convoluzionale DQN per input Atari 4x84x84."""
-
 import torch
 from torch import nn
 
@@ -26,7 +24,7 @@ class DQN(nn.Module):
         self.head = nn.Sequential(nn.Linear(3136, 512), nn.ReLU(), nn.Linear(512, n_actions))
 
     def forward(self, states: torch.Tensor) -> torch.Tensor:
-        return self.head(self.features(states.float() / 255.0))
+        return self.head(self.features(states.float()))
 
 
 class DuelingDQN(nn.Module):
@@ -37,7 +35,7 @@ class DuelingDQN(nn.Module):
         self.advantage_stream = nn.Sequential(nn.Linear(3136, 512), nn.ReLU(), nn.Linear(512, n_actions))
 
     def forward(self, states: torch.Tensor) -> torch.Tensor:
-        features = self.features(states.float() / 255.0)
+        features = self.features(states.float())
         values = self.value_stream(features)
         advantages = self.advantage_stream(features)
         # Combine value and advantage: Q(s, a) = V(s) + (A(s, a) - mean(A(s, a')))

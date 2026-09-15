@@ -30,6 +30,9 @@ class ReplayBuffer:
         self.rewards = np.empty(capacity, dtype=np.float32)
         self.dones = np.empty(capacity, dtype=np.float32)
 
+    def __len__(self) -> int:
+        return self.size
+
     def add(self, state, action: int, reward: float, next_state, done: bool) -> None:
         self.states[self.position] = np.asarray(state, dtype=np.uint8)
         self.next_states[self.position] = np.asarray(next_state, dtype=np.uint8)
@@ -121,11 +124,11 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         segment = self.tree.total_priority / batch_size
 
         for i in range(batch_size):
-            a = segment * i
-            b = segment * (i + 1)
-            v = np.random.uniform(a, b)
-            tree_idx, priority = self.tree.get_leaf(v)
-            # data_idx = tree_idx - self.capacity + 1
+            segment_start = segment * i
+            segment_end = segment * (i + 1)
+            sample_value = np.random.uniform(segment_start, segment_end)
+
+            tree_idx, priority = self.tree.get_leaf(sample_value)
             data_idx = tree_idx - self.tree.capacity + 1
             indices[i] = data_idx
             priorities[i] = priority

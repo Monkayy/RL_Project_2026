@@ -1,5 +1,3 @@
-"""Agente DQN: update TD, target network e selezione epsilon-greedy."""
-
 import random
 from typing import Tuple, Optional
 import numpy as np
