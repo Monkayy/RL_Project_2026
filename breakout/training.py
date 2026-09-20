@@ -18,7 +18,7 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-def evaluate(env, agent: DQNAgent, seed: int, episodes: int, random_policy: bool = False) -> float:
+def evaluate(env, agent: DQNAgent, seed: int, episodes: int, random_policy: bool = False, eval_epsilon : float = 0) -> float:
     returns = []
 
     for episode in range(episodes):
@@ -26,14 +26,13 @@ def evaluate(env, agent: DQNAgent, seed: int, episodes: int, random_policy: bool
         done, total_reward = False, 0.0
 
         while not done:
-            action = env.action_space.sample() if random_policy else agent.select_action(state, 0.0)
+            action = env.action_space.sample() if random_policy else agent.select_action(state, eval_epsilon, evaluating=True)
             state, reward, terminated, truncated, _ = env.step(action)
             total_reward += reward
             done = terminated or truncated
 
         returns.append(total_reward)
 
-    env.close()
     return float(np.mean(returns))
 
 
@@ -43,8 +42,10 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
     device = torch.device(device_name or ("cuda" if torch.cuda.is_available() else "cpu"))
 
     env = make_breakout_env(seed)
+    # Evaluation must not reset or close the trajectory used for training.
+    eval_env = make_breakout_env(seed + 1_000)
     state, _ = env.reset(seed=seed)
-    agent = DQNAgent(env.action_space.n, config, device)
+    agent = DQNAgent(env.action_space.n, config, device, seed)
     
     if config.use_per:
         replay = PrioritizedReplayBuffer(config.replay_capacity, tuple(np.asarray(state).shape), alpha=config.per_alpha)
@@ -67,7 +68,7 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
 
         if config.use_replay:
             # Store transition in buffer and sample mini-batches
-            replay.add(state, action, clipped_reward, next_state, done)
+            replay.add(state, action, clipped_reward, next_state, float(terminated))
 
             if len(replay) >= config.replay_start_size:
                 if step % config.train_frequency == 0:
@@ -108,12 +109,16 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
 
         # evaluate policy
         if step % config.evaluation_frequency == 0:
-            score = evaluate(env, agent, seed + 10_000 + step, config.evaluation_episodes)
+            score = evaluate(eval_env, agent, seed + 10_000 + step, config.evaluation_episodes)
             evaluation_steps.append(step)
             evaluation_returns.append(score)
             print(f"[{name}] step={step:>7} epsilon={config.epsilon(step):.3f} eval={score:.2f}")
 
+    random_baseline = evaluate(
+        eval_env, agent, seed + 20_000, config.evaluation_episodes, random_policy=True
+    )
     env.close()
+    eval_env.close()
     result_path = DATA_DIR / f"{name}_seed_{seed}.npz"
     np.savez_compressed(
         result_path,
@@ -122,7 +127,7 @@ def run_training(name: str, config: DQNConfig, seed: int = 42, device_name: str 
         losses=np.asarray(losses, dtype=np.float32),
         evaluation_steps=np.asarray(evaluation_steps, dtype=np.int32),
         evaluation_returns=np.asarray(evaluation_returns, dtype=np.float32),
-        random_baseline=evaluate(env, agent, seed + 20_000, config.evaluation_episodes, random_policy=True),
+        random_baseline=random_baseline,
         config=np.array(asdict(config), dtype=object),
     )
 

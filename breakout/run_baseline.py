@@ -1,8 +1,11 @@
-"""Script per eseguire la baseline di confronto usando Stable-Baselines3."""
+"""Baseline SB3-DQN, matched as closely as possible to ``DQNConfig``.
+
+The saved schema intentionally mirrors ``breakout.training.run_training`` so
+``breakout.plot_baseline_comparison`` can compare paired seeds directly.
+"""
 
 import argparse
 import numpy as np
-from pathlib import Path
 
 from stable_baselines3 import DQN
 from stable_baselines3.common.callbacks import BaseCallback
@@ -51,7 +54,7 @@ def run_baseline(steps: int, seed: int, device_name: str | None = None):
     
     eval_env = make_breakout_env(seed + 1000)
     
-    config = DQNConfig()
+    config = DQNConfig(total_steps=steps)
     
     # Inizializza il modello SB3 con iperparametri corrispondenti al DQN base
     model = DQN(
@@ -61,13 +64,15 @@ def run_baseline(steps: int, seed: int, device_name: str | None = None):
         buffer_size=config.replay_capacity,
         learning_starts=config.replay_start_size,
         batch_size=config.batch_size,
-        tau=1.0,  # Hard update
+        tau=1.0,
         gamma=config.gamma,
         train_freq=config.train_frequency,
         target_update_interval=config.target_update_frequency,
+        optimize_memory_usage=True,
+        replay_buffer_kwargs={"handle_timeout_termination": False},
         exploration_initial_eps=config.epsilon_start,
         exploration_final_eps=config.epsilon_end,
-        exploration_fraction=config.epsilon_decay_steps / steps if steps >= config.epsilon_decay_steps else 1.0,
+        exploration_fraction=config.epsilon_decay_steps / steps,
         max_grad_norm=config.max_grad_norm,
         seed=seed,
         device=device_name or "auto"
@@ -98,6 +103,8 @@ def run_baseline(steps: int, seed: int, device_name: str | None = None):
     
     model_path = MODEL_DIR / f"baseline_seed_{seed}"
     model.save(str(model_path))
+    env.close()
+    eval_env.close()
     
     print(f"[baseline] Risultati salvati in {result_path}")
 
@@ -109,6 +116,8 @@ def main() -> None:
     parser.add_argument("--device", default=None, help="cpu, cuda oppure auto")
     args = parser.parse_args()
     
+    if args.steps < 1:
+        raise ValueError("--steps deve essere positivo")
     run_baseline(steps=args.steps, seed=args.seed, device_name=args.device)
 
 

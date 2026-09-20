@@ -10,10 +10,12 @@ from breakout.replay_buffer import TransitionBatch
 
 
 class DQNAgent:
-    def __init__(self, n_actions: int, config: DQNConfig, device: torch.device):
+    def __init__(self, n_actions: int, config: DQNConfig, device: torch.device, seed: int = 0):
         self.config = config
         self.device = device
         self.n_actions = n_actions
+        self.rng = random.Random(seed)
+        self.eval_rng = random.Random(seed + 1)  
         
         # Initialize online and target network
         model_class = DuelingDQN if config.use_dueling else DQN
@@ -29,10 +31,10 @@ class DQNAgent:
         # We use none reduction for PER
         self.loss_fn = nn.SmoothL1Loss(reduction='none' if config.use_per else 'mean')
 
-    def select_action(self, state, epsilon: float) -> int:
-        # Epsilon-greedy exploration
-        if random.random() < epsilon:
-            return random.randrange(self.n_actions)
+    def select_action(self, state, epsilon: float, evaluating: bool = False) -> int:
+        rng = self.eval_rng if evaluating else self.rng
+        if rng.random() < epsilon:
+            return rng.randrange(self.n_actions)
         with torch.no_grad():
             state_tensor = torch.as_tensor(np.asarray(state), device=self.device).unsqueeze(0)
             return int(self.online_net(state_tensor).argmax(dim=1).item())
