@@ -100,7 +100,7 @@ def main() -> None:
         if len(reference_steps) == 1:
             auc = values[:, 0]
         else:
-            auc = np.trapz(values, x=reference_steps, axis=1) / (reference_steps[-1] - reference_steps[0])
+            auc = np.trapezoid(values, x=reference_steps, axis=1) / (reference_steps[-1] - reference_steps[0])
         labels.append(label)
         final_means.append(tail.mean())
         final_stds.append(tail.std(ddof=1) if len(tail) > 1 else 0.0)

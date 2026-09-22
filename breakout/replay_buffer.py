@@ -135,7 +135,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
 
         sampling_probabilities = priorities / self.tree.total_priority
         weights = np.power(self.tree.size * sampling_probabilities, -beta)
-        weights /= weights.max()  # Normalize weights
+        weights /= weights.max()
 
         return TransitionBatch(
             torch.as_tensor(self.states[indices], device=device),

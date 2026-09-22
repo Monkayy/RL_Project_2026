@@ -1,9 +1,3 @@
-"""Baseline SB3-DQN, matched as closely as possible to ``DQNConfig``.
-
-The saved schema intentionally mirrors ``breakout.training.run_training`` so
-``breakout.plot_baseline_comparison`` can compare paired seeds directly.
-"""
-
 import argparse
 import numpy as np
 
@@ -48,7 +42,6 @@ class EvaluationCallback(BaseCallback):
 
 
 def run_baseline(steps: int, seed: int, device_name: str | None = None):
-    # Creiamo gli ambienti e aggiungiamo il Monitor per tracciare return e step di ogni episodio
     env = make_breakout_env(seed)
     env = Monitor(env)
     
@@ -56,7 +49,6 @@ def run_baseline(steps: int, seed: int, device_name: str | None = None):
     
     config = DQNConfig(total_steps=steps)
     
-    # Inizializza il modello SB3 con iperparametri corrispondenti al DQN base
     model = DQN(
         "CnnPolicy",
         env,
@@ -88,7 +80,6 @@ def run_baseline(steps: int, seed: int, device_name: str | None = None):
     print(f"Inizio addestramento baseline (Stable-Baselines3) per {steps} passi...")
     model.learn(total_timesteps=steps, callback=eval_callback, log_interval=None)
     
-    # Recuperiamo le metriche di addestramento dal Monitor
     episode_returns = np.array(env.get_episode_rewards(), dtype=np.float32)
     episode_steps = np.array(env.get_episode_lengths(), dtype=np.int32)
     
